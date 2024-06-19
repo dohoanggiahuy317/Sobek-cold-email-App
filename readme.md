@@ -32,9 +32,12 @@ The solution involves automating the entire process of sending cold emails by:
 - Command-Line Interface: Enables users to run the script with various options via command-line arguments.
 - Easy keep track of emails you sending in real-time
 
-Check point 1: Template email
+Checkpoint 1: Template email
+
 <img width="661" alt="Screenshot 2024-06-19 at 11 25 40 PM" src="https://github.com/dohoanggiahuy317/Sobek-cold-email-App/assets/72744045/bd948468-4974-4b61-beac-70cf3bef0b2a">
-Check point 2: Real email
+
+Checkpoint 2: Real email
+
 <img width="659" alt="Screenshot 2024-06-19 at 11 25 59 PM" src="https://github.com/dohoanggiahuy317/Sobek-cold-email-App/assets/72744045/fcddd6ed-f0e9-4a22-964a-680ca1c24b9c">
 
 
