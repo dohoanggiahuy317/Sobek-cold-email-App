@@ -1,0 +1,31 @@
+# Ignore common files
+*.log
+*.DS_Store
+
+# Ignore JSON files
+*.json
+
+# Ignore system files from IDEs and editors
+.vscode/
+.idea/
+
+# Ignore environment-specific files
+.env
+
+# Ignore compiled Python files
+*.pyc
+
+# Ignore backup files
+*~
+
+# Ignore package directories
+__pycache__/
+dist/
+build/
+
+# Ignore virtual environment directories
+venv/
+
+# Secret template
+template/mail_template.txt
+
