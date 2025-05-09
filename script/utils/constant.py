@@ -1,0 +1,1 @@
+template_path= "mail_template/mail_template.txt"
