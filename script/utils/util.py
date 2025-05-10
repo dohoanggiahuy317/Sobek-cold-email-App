@@ -6,6 +6,8 @@ import script.utils.constant as constant
 # ==================================== PART 1 ==================================
 # ==============================================================================
 
+recipient_df = pd.DataFrame(columns=['name','email','company'])
+
 def extract_sheet_id(url):
     m = re.search(r'/d/([\w\-]+)', url)
     if not m:
@@ -21,6 +23,7 @@ def get_preview_data(data, gc):
     Otherwise, extracts a Google Sheet ID from the submitted URL
     Looks for optional start_row and end_row values
     """
+    global recipient_df
 
     data = request.form.to_dict()
    
@@ -49,6 +52,9 @@ def get_preview_data(data, gc):
     df = df.iloc[s:e]
     df = df[[data['name_col'], data['email_col'], data['company_col']]]
     df.columns = ['name','email','company']
+
+    # save the recipient data to a global variable
+    recipient_df = df.copy()
 
     return df
 

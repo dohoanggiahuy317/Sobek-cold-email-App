@@ -24,7 +24,7 @@
     <div class="modal fade" id="configModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content p-3">
-                
+
                 <form id="configForm" id="configForm" action="/api/preview" method="POST" enctype="multipart/form-data"
                     onsubmit="return false;">
                     <h5>Select source & map columns</h5>
@@ -96,12 +96,13 @@
                         </small>
                     </div>
                     <div class="mb-3">
-                      <label>Email Subject:</label>
-                      <input id="mail_templateSubject" type="text" class="form-control" placeholder="Enter email subject">
+                        <label>Email Subject:</label>
+                        <input id="mail_templateSubject" type="text" class="form-control"
+                            placeholder="Enter email subject">
                     </div>
                     <div class="mb-3">
-                      <label>Edit email body:</label>
-                      <textarea id="mail_templateBody" class="form-control" rows="10"></textarea>
+                        <label>Edit email body:</label>
+                        <textarea id="mail_templateBody" class="form-control" rows="10"></textarea>
                     </div>
                     <button id="templateDoneBtn" class="btn btn-primary">Finish</button>
                 </div>
@@ -111,15 +112,37 @@
         </div>
     </div>
 
+    <form id="sendForm" action="/send_preview" method="POST" enctype="multipart/form-data" style="display:none;"
+        id="sendArea">
+        <h5>Send Emails</h5>
+        <input type="hidden" name="recipient_name" id="recipientName">
+        <input type="hidden" name="recipient_email" id="recipientEmail">
+        <input type="hidden" name="recipient_company" id="recipientCompany">
+        <div class="mb-3">
+            <label>Subject:</label>
+            <input name="subject" id="sendSubject" type="text" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label>Body:</label>
+            <textarea name="body" id="sendBody" class="form-control" rows="6"></textarea>
+        </div>
+        <div class="mb-3">
+            <label>Attachments:</label>
+            <input name="attachments" id="sendAttachments" type="file" multiple class="form-control">
+        </div>
+        <button type="submit" class="btn btn-primary">Preview Email</button>
+    </form>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js">
     </script>
     <script>
         (() => {
-            let recipients = [];
-            let mail_template = '';
 
-            // 1) Preview
+            // ========================================================================================================
+            // 1) Preview // ==========================================================================================
+            // ========================================================================================================
             document.getElementById('previewBtn').onclick = async () => {
+                let recipients = [];
                 const form = document.getElementById('configForm');
                 const fd = new FormData(form);
                 const res = await fetch('/api/preview', { method: 'POST', body: fd });
@@ -134,7 +157,10 @@
                 document.getElementById('previewArea').style.display = 'block';
             };
 
-            // 2) Confirm & go to mail_template editor
+            // ========================================================================================================
+            // 2) Confirm & go to mail_template editor ================================================================
+            // ========================================================================================================
+
             document.getElementById('previewDoneBtn').onclick = async () => {
                 // document.getElementById('previewArea').style.display = 'none';
                 // document.getElementById('configForm').style.display = 'none';
@@ -147,11 +173,16 @@
                     msgDiv.textContent = 'No mail_template, please upload.';
                     document.getElementById('mail_templateSubject').value = '';
                     document.getElementById('mail_templateBody').value = '';
+                    document.getElementById('mail_templateSubject').style.display = 'none';
+                    document.getElementById('mail_templateBody').style.display = 'none';
                 } else {
                     msgDiv.textContent = '';
                     const text = await res.text();
                     // Split into subject and body at first blank line
                     const [subject, ...rest] = text.split(/\r?\n\r?\n/);
+                    document.getElementById('mail_templateSubject').style.display = 'block';
+                    document.getElementById('mail_templateBody').style.display = 'block';
+                    // Set subject and body fields
                     document.getElementById('mail_templateSubject').value = subject;
                     document.getElementById('mail_templateBody').value = rest.join('\n\n');
                 }
@@ -163,6 +194,8 @@
                 if (!file) return;
                 const text = await file.text();
                 const [subject, ...rest] = text.split(/\r?\n\r?\n/);
+                document.getElementById('mail_templateSubject').style.display = 'block';
+                document.getElementById('mail_templateBody').style.display = 'block';
                 document.getElementById('mail_templateSubject').value = subject;
                 document.getElementById('mail_templateBody').value = rest.join('\n\n');
                 // upload file to server
@@ -175,21 +208,27 @@
 
             // Finish button: save edited mail_template before sending emails
             document.getElementById('templateDoneBtn').onclick = async () => {
-                // save edited mail_template
+                let mail_template = '';
                 const subject = document.getElementById('mail_templateSubject').value;
                 const body = document.getElementById('mail_templateBody').value;
                 mail_template = subject + "\n\n" + body;
                 await fetch('/mail_template', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mail_template: mail_template })
+                    body: JSON.stringify({ template: mail_template })
                 });
-                // You can add the rest of your finish logic here
+
+                // hide the Bootstrap modal and return to the main page
+                const modalEl = document.getElementById('configModal');
+                const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                bsModal.hide();
+
+                // show send area
+                document.getElementById('sendForm').style.display = 'block';
             };
 
 
-
-
+            
 
 
         })();

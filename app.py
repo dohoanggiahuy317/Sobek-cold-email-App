@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, jsonify, send_file
+from flask import Flask, request, render_template, jsonify, send_file, session, redirect, url_for
 import pandas as pd, io, re, gspread, smtplib, os
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -9,6 +9,7 @@ import script.utils.util as util
 import script.utils.constant as constant
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'change-this')
 gc = gspread.service_account(filename='credentials.json')
 
 
@@ -30,7 +31,7 @@ def preview():
     try:
         data = request.form.to_dict()
         df = util.get_preview_data(data, gc)
-        return jsonify(df.head(10).to_dict(orient='records'))
+        return jsonify(df.to_dict(orient='records'))
     except Exception as e:
         return jsonify(error=str(e)), 400
 
@@ -64,54 +65,59 @@ def upload_template():
 # ==================================== PART 3 ==================================
 # ==============================================================================
 
-# @app.route('/api/send_email', methods=['POST'])
-# def send_email_api():
-#     """
-#     Sends a single email with optional attachments.
-#     Expects JSON: {
-#       "recipient": {"name": ..., "email": ..., "company": ...},
-#       "subject": "...",
-#       "body": "...",
-#       "attachments": ["path1", ...]  # optional
-#     }
-#     """
-#     data = request.get_json()
-#     sender = os.environ.get('SMTP_USER')
-#     password = os.environ.get('SMTP_PASS')
-#     rec = data['recipient']
-#     subject = data['subject']
-#     body = data['body']
-#     attachments = data.get('attachments', [])
-#     # Build message
-#     msg = MIMEMultipart()
-#     msg['From'] = sender
-#     msg['To'] = rec['email']
-#     msg['Subject'] = subject
-#     msg.attach(MIMEText(body, 'plain'))
-#     for file_path in attachments:
-#         part = MIMEBase("application", "octet-stream")
-#         with open(file_path, "rb") as f:
-#             part.set_payload(f.read())
-#         encoders.encode_base64(part)
-#         part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(file_path)}")
-#         msg.attach(part)
-#     # Send
-#     server = smtplib.SMTP(os.environ.get('SMTP_HOST','smtp.gmail.com'), 587)
-#     server.starttls()
-#     server.login(sender, password)
-#     server.sendmail(sender, rec['email'], msg.as_string())
-#     server.quit()
-#     return jsonify(status="sent")
+@app.route('/send_preview', methods=['POST'])
+def send_preview():
+    # get form data
+    name = request.form['recipient_name']
+    email = request.form['recipient_email']
+    company = request.form['recipient_company']
+    subject = request.form['subject']
+    body = request.form['body']
+    # save data in session for final send
+    session['preview'] = {
+        'recipient': {'name': name, 'email': email, 'company': company},
+        'subject': subject,
+        'body': body
+    }
+    # handle attachments
+    files = request.files.getlist('attachments')
+    attachment_names = []
+    for f in files:
+        path = os.path.join('uploads', f.filename)
+        f.save(path)
+        attachment_names.append(f.filename)
+    session['preview']['attachments'] = attachment_names
+    return render_template('preview.html', preview=session['preview'])
 
-# @app.route('/api/upload_attachments', methods=['POST'])
-# def upload_attachments():
-#     files = request.files.getlist('attachments')
-#     saved = []
-#     for f in files:
-#         path = os.path.join('uploads', f.filename)
-#         f.save(path)
-#         saved.append(path)
-#     return jsonify(saved)
+
+@app.route('/send_email', methods=['POST'])
+def send_final():
+    preview = session.pop('preview', None)
+    if not preview:
+        return redirect(url_for('index'))
+    # call existing send logic
+    util.send_email(
+        sender=os.environ['SMTP_USER'],
+        password=os.environ['SMTP_PASS'],
+        recipient_email=preview['recipient']['email'],
+        subject=preview['subject'],
+        body=preview['body'],
+        attachments=[os.path.join('uploads', fn) for fn in preview.get('attachments', [])]
+    )
+    # redirect or show success
+    return render_template('sent.html', recipient=preview['recipient'])
+
+
+# ==============================================================================
+# ==================================== PART 3 ==================================
+# ==============================================================================
+
+@app.route('/api/recipients', methods=['GET'])
+def get_recipients():
+    """Return the full list of recipients from the last preview."""
+    data = util.recipient_df.to_dict(orient='records')
+    return jsonify(data)
+
 
 
 
