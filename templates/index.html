@@ -25,7 +25,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content p-3">
 
-                <form id="configForm" id="configForm" action="/api/preview" method="POST" enctype="multipart/form-data"
+                <form id="configForm" action="/preview" method="POST" enctype="multipart/form-data"
                     onsubmit="return false;">
                     <h5>Select source & map columns</h5>
                     <div class="mb-3">
@@ -112,12 +112,15 @@
         </div>
     </div>
 
-    <form id="sendForm" action="/send_preview" method="POST" enctype="multipart/form-data" style="display:none;"
-        id="sendArea">
+    <form id="sendForm" style="display:none;">
         <h5>Send Emails</h5>
-        <input type="hidden" name="recipient_name" id="recipientName">
-        <input type="hidden" name="recipient_email" id="recipientEmail">
-        <input type="hidden" name="recipient_company" id="recipientCompany">
+        <input name="recipient_name" id="recipientName" readonly>
+        <input name="recipient_email" id="recipientEmail" readonly>
+        <input name="recipient_company" id="recipientCompany" readonly>
+        <div class="mb-3">
+            <label>Email:</label>
+            <input name="email" id="sendEmail" type="text" class="form-control">
+        </div>
         <div class="mb-3">
             <label>Subject:</label>
             <input name="subject" id="sendSubject" type="text" class="form-control">
@@ -130,26 +133,59 @@
             <label>Attachments:</label>
             <input name="attachments" id="sendAttachments" type="file" multiple class="form-control">
         </div>
-        <button type="submit" class="btn btn-primary">Preview Email</button>
+        <button type="button" id="sendBtn" class="btn btn-primary">Send</button>
     </form>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js">
     </script>
     <script>
         (() => {
+            let recipients = [];
+            let mail_template = '';
+            let currentIndex = 0;
+
+            // Utility to display the current recipient in the send form
+            function displayRecipient(i) {
+                const rec = recipients[i];
+                document.getElementById('recipientName').value = rec.name;
+                document.getElementById('recipientEmail').value = rec.email;
+                document.getElementById('recipientCompany').value = rec.company;
+                // Fill subject/body placeholders
+                const [subjTpl, ...bodyParts] = mail_template.split(/\r?\n\r?\n/);
+                const bodyTpl = bodyParts.join('\n\n');
+                console.log('mail_template:', mail_template);
+                console.log('subjTpl:', subjTpl);
+                console.log('bodyParts:', bodyParts);
+
+                let editSubject = subjTpl
+                    .replaceAll("[Name]", rec.name)
+                    .replaceAll("[Company]", rec.company)
+                let editBody = bodyTpl
+                    .replaceAll("[Name]", rec.name)
+                    .replaceAll("[Company]", rec.company)
+                
+                console.log('Subject:', editSubject);
+                console.log('Body:', editBody);
+
+
+                
+                document.getElementById('sendEmail').value = rec.email;
+                document.getElementById('sendSubject').value = editSubject
+                document.getElementById('sendBody').value = editBody
+            }
 
             // ========================================================================================================
             // 1) Preview // ==========================================================================================
             // ========================================================================================================
             document.getElementById('previewBtn').onclick = async () => {
-                let recipients = [];
+                let local_recipients = [];
                 const form = document.getElementById('configForm');
                 const fd = new FormData(form);
-                const res = await fetch('/api/preview', { method: 'POST', body: fd });
-                recipients = await res.json();
+                const res = await fetch('/preview', { method: 'POST', body: fd });
+                local_recipients = await res.json();
                 const tbody = document.getElementById('previewBody');
                 tbody.innerHTML = '';
-                recipients.forEach(r => {
+                local_recipients.forEach(r => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `<td>${r.name}</td><td>${r.email}</td><td>${r.company}</td>`;
                     tbody.appendChild(tr);
@@ -201,21 +237,26 @@
                 // upload file to server
                 const fd = new FormData();
                 fd.append('file', file);
-                await fetch('/mail_template', { method: 'POST', body: fd });
+                await fetch('/upload_template', {
+                    method: 'POST',
+                    body: fd
+                });
                 const msgDiv = document.getElementById('mail_templateMessage');
                 msgDiv.textContent = '';
+                // clear the file input after upload
+                e.target.value = '';
             });
 
             // Finish button: save edited mail_template before sending emails
             document.getElementById('templateDoneBtn').onclick = async () => {
-                let mail_template = '';
+                let local_mail_template = '';
                 const subject = document.getElementById('mail_templateSubject').value;
                 const body = document.getElementById('mail_templateBody').value;
-                mail_template = subject + "\n\n" + body;
-                await fetch('/mail_template', {
+                local_mail_template = subject + "\n\n" + body;
+                await fetch('/save_template', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ template: mail_template })
+                    body: JSON.stringify({ mail_template: local_mail_template })
                 });
 
                 // hide the Bootstrap modal and return to the main page
@@ -223,13 +264,51 @@
                 const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
                 bsModal.hide();
 
-                // show send area
+                // load recipients from server
+                const recRes = await fetch('/recipients');
+                recipients = await recRes.json();
+                currentIndex = 0;
+
+                mail_template = local_mail_template
+
+                // show send form and display first recipient
                 document.getElementById('sendForm').style.display = 'block';
+                displayRecipient(currentIndex);
+                // show sending box
+
             };
 
 
-            
 
+            // ========================================================================================================
+            // Send button cycles through recipients ================================================================
+            // ========================================================================================================
+
+            document.getElementById('sendBtn').onclick = async () => {
+                // call send_email endpoint
+                const subject = document.getElementById('sendSubject').value;
+                const body = document.getElementById('sendBody').value;
+                await fetch('/send_email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipient: {
+                            name: document.getElementById('recipientName').value,
+                            email: document.getElementById('recipientEmail').value,
+                            company: document.getElementById('recipientCompany').value
+                        },
+                        subject, body, attachments: []
+                    })
+                });
+                // move to next
+                currentIndex++;
+                if (currentIndex < recipients.length) {
+                    displayRecipient(currentIndex);
+                } else {
+                    alert('All emails sent!');
+                    document.getElementById('sendForm').style.display = 'none';
+                }
+            };
 
         })();
     </script>
